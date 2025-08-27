@@ -23,7 +23,7 @@ public class ModifiableImageApp extends JFrame {
 	private static final boolean CIPHER_PRINT = false;
 	
 	public ModifiableImageApp() {
-		super("AES Image Encryption & Decryption");
+		super("AES Image Encryption");
 		
 		File defaultFile = new File("data/after-sunset-minimal-4k-zm-1920x1080.jpg");
 		
