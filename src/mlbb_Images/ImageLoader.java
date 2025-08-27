@@ -1,0 +1,508 @@
+package mlbb_Images;
+
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import javax.imageio.ImageIO;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
+public class ImageLoader {
+	// Symmetric key and base image
+	private boolean firstDraw = true;
+	private final byte[] iv = new byte[16];
+	private final byte[] pad = new byte[16];
+	private int width, height, keySize;
+	private int[] rgbArray;
+	private BufferedImage bfImage;
+	private SecretKey symmetricKey = null;
+	
+	public ImageLoader(File f) {
+		try {
+			bfImage = ImageIO.read(f);
+			bfImage = toIntARGB(bfImage);
+		} catch (IOException e) {
+			System.out.println("An error occured while reading the file.");
+			bfImage = generatePlaceholder(Color.ORANGE, Color.PINK);
+			bfImage = toIntARGB(bfImage);
+		} catch (NullPointerException e) {
+			System.out.println("Not an image file: " + f.getName());
+			bfImage = generatePlaceholder(Color.ORANGE, Color.PINK);
+			bfImage = toIntARGB(bfImage);
+		}
+		width = bfImage.getWidth();
+		height = bfImage.getHeight();
+		rgbArray = new int[width * height];
+		bfImage.getRGB(0, 0, width, height, rgbArray, 0, width);
+		
+		// Replace with metadata reader later
+		if (f.getName().lastIndexOf('.') != -1) {
+			String fn_no_ext = f.getName().substring(0, f.getName().lastIndexOf('.'));
+			String[] numbers = fn_no_ext.split("_", -1);
+			
+			if (numbers.length > 7) {
+				try {
+					keySize = Integer.parseInt(numbers[numbers.length - 1]);
+					if (!(keySize != 128 && keySize != 192 && keySize != 256)) {
+						int n = keySize / 64;
+						long padLSB = Long.parseLong(numbers[numbers.length - n - 2]);
+						long padMSB = Long.parseLong(numbers[numbers.length - n - 3]);
+						long ivLSB = Long.parseLong(numbers[numbers.length - n - 4]);
+						long ivMSB = Long.parseLong(numbers[numbers.length - n - 5]);
+						long[] keyLongs = new long[keySize / 64];
+						
+						for (int i = 2; i < 2 + n; i++) {
+							keyLongs[keyLongs.length - i + 1] = Long.parseLong(numbers[numbers.length - i]);
+						}
+						
+						byte[] keyBytes = toBytesBE(keyLongs, n);
+						symmetricKey = new SecretKeySpec(keyBytes, "AES");
+						
+						System.arraycopy(toBytesBE(padMSB, padLSB), 0, pad, 0, 16);
+						System.arraycopy(toBytesBE(ivMSB, ivLSB), 0, iv, 0, 16);
+					} else {
+						System.out.println("An error occured: Invalid key length.");
+					}
+				} catch (NumberFormatException e) {
+					System.out.println("java.lang.NumberFormatException: " + e.getMessage());
+					clearFields();
+				} catch (ArrayIndexOutOfBoundsException e) {
+					System.out.println("java.lang.ArrayIndexOutOfBoundsException: " + e.getMessage());
+					clearFields();
+				}
+			}
+		}
+	}
+	
+	public ImageLoader() {
+		bfImage = generatePlaceholder(Color.ORANGE, Color.PINK);
+		bfImage = toIntARGB(bfImage);
+		width = bfImage.getWidth();
+		height = bfImage.getHeight();
+		rgbArray = new int[width * height];
+		bfImage.getRGB(0, 0, width, height, rgbArray, 0, width);
+	}
+	
+	public void encryptImageARGB(boolean printInfo) throws
+	NoSuchAlgorithmException, NoSuchPaddingException,
+	InvalidKeyException, InvalidAlgorithmParameterException,
+	IllegalBlockSizeException, BadPaddingException {
+		ImageLogger imgLog = new ImageLogger(printInfo);
+		imgLog.println("--- Starting encryption ---");
+		
+		keySize = 128;
+		symmetricKey = AesCBC.newAesKey(keySize);
+		
+		byte[] argbBytes = toBytesARGB(rgbArray);
+		imgLog.println("Image length in bytes: " + argbBytes.length);
+		imgLog.print("Image bytes: ");
+		imgLog.printArrayView(argbBytes);
+		
+		byte[] ciphertext = AesCBC.aesCbcEncryptPkcs5(argbBytes, symmetricKey, true);
+		imgLog.println("Encryption successful!");
+		imgLog.println("Ciphertext length in bytes: " + ciphertext.length);
+		imgLog.print("Ciphertext bytes: ");
+		imgLog.printArrayView(ciphertext);
+		
+		System.arraycopy(ciphertext, 0, iv, 0, 16);
+		imgLog.print("IV bytes: ");
+		imgLog.printArrayView(iv);
+		
+		System.arraycopy(ciphertext, ciphertext.length - 16, pad, 0, 16);
+		imgLog.print("Encrypted padding block bytes: ");
+		imgLog.printArrayView(pad);
+		
+		int[] encryptedRgbArray = fromBytesARGB(Arrays.copyOfRange(ciphertext, 16, argbBytes.length + 16));
+		imgLog.println("Encrypted rgbArray length in bytes: " + encryptedRgbArray.length * 4);
+		imgLog.print("Encrypted image contents: ");
+		imgLog.printArrayView(encryptedRgbArray);
+		
+		bfImage.setRGB(0, 0, width, height, encryptedRgbArray, 0, width);
+		imgLog.print("Current image contents (directly after encryption): ");
+		imgLog.printArrayView(rgbArray);
+	}
+	
+	public void decryptImageARGB(boolean printInfo) throws
+	NoSuchAlgorithmException, NoSuchPaddingException,
+	InvalidKeyException, InvalidAlgorithmParameterException,
+	IllegalBlockSizeException, BadPaddingException {
+		ImageLogger imgLog = new ImageLogger(printInfo);
+		imgLog.println("--- Starting decryption ---");
+		
+		byte[] argbBytes = toBytesARGB(rgbArray);
+		imgLog.println("Current encrypted image length in bytes: " + argbBytes.length);
+		imgLog.print("Current encrypted image bytes: ");
+		imgLog.printArrayView(argbBytes);
+		
+		byte[] plaintext = AesCBC.aesCbcDecryptPkcs5(getFullEncryptedBytes(argbBytes, printInfo), symmetricKey);
+		imgLog.println("Decryption successful!");
+		imgLog.println("Plaintext length in bytes: " + plaintext.length);
+		imgLog.print("Plaintext bytes: ");
+		imgLog.printArrayView(plaintext);
+		
+		int[] decryptedRgbArray = fromBytesARGB(plaintext);
+		imgLog.println("Decrypted rgbArray length in bytes: " + decryptedRgbArray.length * 4);
+		imgLog.print("Decrypted image contents: ");
+		imgLog.printArrayView(decryptedRgbArray);
+		
+		bfImage.setRGB(0, 0, width, height, decryptedRgbArray, 0, width);
+		imgLog.print("Current image contents (directly after decryption): ");
+		imgLog.printArrayView(rgbArray);
+	}
+	
+	public void encryptImageRGB(boolean printInfo) throws
+	NoSuchAlgorithmException, NoSuchPaddingException,
+	InvalidKeyException, InvalidAlgorithmParameterException,
+	IllegalBlockSizeException, BadPaddingException {
+		ImageLogger imgLog = new ImageLogger(printInfo);
+		imgLog.println("--- Starting encryption ---");
+		
+		keySize = 128;
+		symmetricKey = AesCBC.newAesKey(keySize);
+		
+		byte[] rgbBytes = toBytesRGB(rgbArray);
+		imgLog.println("Image length in bytes: " + rgbBytes.length);
+		imgLog.print("Image bytes: ");
+		imgLog.printArrayView(rgbBytes);
+		
+		byte[] ciphertext = AesCBC.aesCbcEncryptPkcs5(rgbBytes, symmetricKey, true);
+		imgLog.println("Encryption successful!");
+		imgLog.println("Ciphertext length in bytes: " + ciphertext.length);
+		imgLog.print("Ciphertext bytes: ");
+		imgLog.printArrayView(ciphertext);
+		
+		System.arraycopy(ciphertext, 0, iv, 0, 16);
+		imgLog.print("IV bytes: ");
+		imgLog.printArrayView(iv);
+		
+		System.arraycopy(ciphertext, ciphertext.length - 16, pad, 0, 16);
+		imgLog.print("Encrypted padding block bytes: ");
+		imgLog.printArrayView(pad);
+		
+		int[] encryptedRgbArray = fromBytesRGB(Arrays.copyOfRange(ciphertext, 16, rgbBytes.length + 16), extractAlpha(rgbArray));
+		imgLog.println("Encrypted rgbArray length in bytes: " + encryptedRgbArray.length * 4);
+		imgLog.print("Encrypted image contents: ");
+		imgLog.printArrayView(encryptedRgbArray);
+		
+		bfImage.setRGB(0, 0, width, height, encryptedRgbArray, 0, width);
+		imgLog.print("Current image contents (directly after encryption): ");
+		imgLog.printArrayView(rgbArray);
+	}
+	
+	public void decryptImageRGB(boolean printInfo) throws
+	NoSuchAlgorithmException, NoSuchPaddingException,
+	InvalidKeyException, InvalidAlgorithmParameterException,
+	IllegalBlockSizeException, BadPaddingException {
+		ImageLogger imgLog = new ImageLogger(printInfo);
+		imgLog.println("--- Starting decryption ---");
+		
+		byte[] rgbBytes = toBytesRGB(rgbArray);
+		imgLog.println("Current encrypted image length in bytes: " + rgbBytes.length);
+		imgLog.print("Current encrypted image bytes: ");
+		imgLog.printArrayView(rgbBytes);
+		
+		byte[] plaintext = AesCBC.aesCbcDecryptPkcs5(getFullEncryptedBytes(rgbBytes, printInfo), symmetricKey);
+		imgLog.println("Decryption successful!");
+		imgLog.println("Plaintext length in bytes: " + plaintext.length);
+		imgLog.print("Plaintext bytes: ");
+		imgLog.printArrayView(plaintext);
+		
+		int[] decryptedRgbArray = fromBytesRGB(plaintext, extractAlpha(rgbArray));
+		imgLog.println("Decrypted rgbArray length in bytes: " + decryptedRgbArray.length * 4);
+		imgLog.print("Decrypted image contents: ");
+		imgLog.printArrayView(decryptedRgbArray);
+		
+		bfImage.setRGB(0, 0, width, height, decryptedRgbArray, 0, width);
+		imgLog.print("Current image contents (directly after decryption): ");
+		imgLog.printArrayView(rgbArray);
+	}
+	
+	private BufferedImage generatePlaceholder(Color d, Color l) {
+		int w = 7;
+		int h = 3;
+		BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = img.createGraphics();
+		int s = Math.max(1, h / 30);
+		for (int y = 0; y < h; y += s) {
+			for (int x = 0; x < w; x += s) {
+				boolean dark = ((x / s) + (y / s)) % 2 == 0;
+				g.setColor(dark ? d : l);
+				g.fillRect(x, y, s, s);
+			}
+		}
+		return img;
+	}
+			
+	private BufferedImage toIntARGB(BufferedImage src) {
+		if (src.getType() == BufferedImage.TYPE_INT_ARGB) {
+			return src;
+		}
+		BufferedImage dst = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = dst.createGraphics();
+		g.setComposite(AlphaComposite.Src); // preserve raw pixels, no blending
+		g.drawImage(src, 0, 0, null);
+		g.dispose();
+		return dst;
+	}
+
+	private byte[] getFullEncryptedBytes(byte[] rgbBytes, boolean printInfo) {
+		ImageLogger imgLog = new ImageLogger(printInfo);
+		byte[] fullEncryptedBytes = new byte[rgbBytes.length + 32 - rgbBytes.length % 16];
+	
+		int partial = rgbBytes.length % 16;
+		int nonpadding = rgbBytes.length + 16;
+		System.arraycopy(iv, 0, fullEncryptedBytes, 0, 16);
+		System.arraycopy(rgbBytes, 0, fullEncryptedBytes, 16, rgbBytes.length);
+		System.arraycopy(pad, partial, fullEncryptedBytes, nonpadding, 16 - partial);
+		
+		imgLog.println("Reconstructed ciphertext length in bytes: " + fullEncryptedBytes.length);
+		imgLog.print("Reconstructed ciphertext bytes: ");
+		imgLog.printArrayView(fullEncryptedBytes);
+		return fullEncryptedBytes;
+	}
+
+	/** Converts a RGB array into a byte array including the alpha values. */
+	public static byte[] toBytesARGB(int[] rgbArray) {
+		byte[] argbBytes = new byte[rgbArray.length * 4];
+		for (int i = 0; i < rgbArray.length; i++) {
+			int curr_int = rgbArray[i];
+			int a = (curr_int >>> 24)	& 0xFF;
+			int r = (curr_int >>> 16)	& 0xFF;
+			int g = (curr_int >>> 8)	& 0xFF;
+			int b = (curr_int)			& 0xFF;
+			argbBytes[i * 4] =		(byte) a;
+			argbBytes[i * 4 + 1] =	(byte) r;
+			argbBytes[i * 4 + 2] =	(byte) g;
+			argbBytes[i * 4 + 3] =	(byte) b;
+		}
+		return argbBytes;
+	}
+	
+	/** Converts a byte array of ARGB values the corresponding RGB array. */
+	private int[] fromBytesARGB(byte[] argbBytes) {
+		if (argbBytes.length % 4 != 0) {
+			throw new IllegalArgumentException("byte array length not divisible by 4");
+		}
+		int[] rgbArray = new int[argbBytes.length / 4];
+		for (int i = 0; i < rgbArray.length; i++) {
+			int a = argbBytes[i * 4]		& 0xFF;
+			int r = argbBytes[i * 4 + 1]	& 0xFF;
+			int g = argbBytes[i * 4 + 2]	& 0xFF;
+			int b = argbBytes[i * 4 + 3]	& 0xFF;
+			rgbArray[i] = (a << 24) | (r << 16) | (g << 8) | b;
+		}
+		return rgbArray;
+	}
+	
+	/** Converts a RGB array into a byte array without including the alpha values. */
+	private byte[] toBytesRGB(int[] rgbArray) {
+		byte[] rgbBytes = new byte[rgbArray.length * 3];
+		for (int i = 0; i < rgbArray.length; i++) {
+			int curr_int = rgbArray[i];
+			int r = (curr_int >>> 16)	& 0xFF;
+			int g = (curr_int >>> 8)	& 0xFF;
+			int b = (curr_int)			& 0xFF;
+			rgbBytes[i * 3] =		(byte) r;
+			rgbBytes[i * 3 + 1] =	(byte) g;
+			rgbBytes[i * 3 + 2] =	(byte) b;
+		}
+		return rgbBytes;
+	}
+	
+	/** Converts a byte array of RGB values into the corresponding RGB array, given the original alpha source. */
+	private int[] fromBytesRGB(byte[] rgbBytes, byte[] alphaSrc) {
+		if (rgbBytes.length % 3 != 0) {
+			throw new IllegalArgumentException("byte array length not divisible by 3");
+		}
+		int[] rgbArray = new int[rgbBytes.length / 3];
+		for (int i = 0; i < rgbArray.length; i++) {
+			int a = alphaSrc[i]			& 0xFF;
+			int r = rgbBytes[i * 3]		& 0xFF;
+			int g = rgbBytes[i * 3 + 1]	& 0xFF;
+			int b = rgbBytes[i * 3 + 2]	& 0xFF;
+			rgbArray[i] = (a << 24) | (r << 16) | (g << 8) | b;
+		}
+		return rgbArray;
+	}
+
+	/** Pack n longs into a (n * 8)-byte array, big-endian. */
+	private byte[] toBytesBE(long[] longs, int n) {
+		if (n > longs.length) {
+			throw new IllegalArgumentException("number of longs is larger than the array length");
+		} else if (n == 2) {
+			return toBytesBE(longs[0], longs[1]);
+		} else {
+			ByteBuffer buf = ByteBuffer.allocate(n * 8).order(ByteOrder.BIG_ENDIAN);
+			for (int i = 0; i < n; i++) {
+			buf.putLong(longs[i]);
+			}
+			return buf.array();
+		}
+	}
+
+	/** Pack two longs into a 16-byte array: [high(8) | low(8)], big-endian. */
+	private byte[] toBytesBE(long high, long low) {
+		return ByteBuffer.allocate(16)
+				.order(ByteOrder.BIG_ENDIAN)
+				.putLong(high)
+				.putLong(low)
+				.array();
+	}
+
+	/** Unpack two longs from a 16-byte array: [high(8) | low(8)], big-endian. */
+	private long[] fromBytesBE(byte[] src) {
+		if (src.length != 16) {
+			throw new IllegalArgumentException("expected 16 bytes, got " + src.length);
+		}
+		ByteBuffer buf = ByteBuffer.wrap(src).order(ByteOrder.BIG_ENDIAN);
+		long high = buf.getLong();
+		long low = buf.getLong();
+		return new long[] {high, low};
+	}
+
+	private long[] getSecretParameters() {
+		if (iv.length % 8 != 0 || pad.length % 8 != 0) {
+			throw new IllegalArgumentException("something went wrong...");
+		}
+		long[] values = new long[4];
+		System.arraycopy(fromBytesBE(iv), 0, values, 0, 2);
+		System.arraycopy(fromBytesBE(pad), 0, values, 2, 2);
+		return values;
+	}
+	
+	private long[] getSecretKey() {
+		byte[] keyBytes = symmetricKey.getEncoded();
+		if (keyBytes.length % 8 != 0) {
+			throw new IllegalArgumentException("encoded key byte array length not divisible by 8");
+		}
+		long[] values = new long[keyBytes.length / 8];
+		ByteBuffer buf_key = ByteBuffer.wrap(keyBytes).order(ByteOrder.BIG_ENDIAN);
+		for (int i = 0; i < values.length; i++) {
+			values[i] = buf_key.getLong();
+		}
+		return values;
+	}
+	
+	private byte[] extractAlpha(int[] rgbArray) {
+	    byte[] alphaArray = new byte[rgbArray.length];
+	    for (int i = 0; i < rgbArray.length; i++) {
+	    	alphaArray[i] = (byte) ((rgbArray[i] >>> 24) & 0xFF);
+	    }
+	    return alphaArray;
+	}
+	
+	private void clearFields() {
+		byte[] zeros = new byte[16];
+		System.arraycopy(zeros, 0, iv, 0, 16);
+		System.arraycopy(zeros, 0, pad, 0, 16);
+		symmetricKey = null;
+	}
+
+	public int getImgWidth() {
+		return width;
+	}
+	
+	public int getImgHeight() {
+		return height;
+	}
+	
+	public int getKeySize() {
+		return keySize;
+	}
+	
+	public void saveAsPNG(String heroName) {
+		long[] secretParameterValues = getSecretParameters();
+		long[] secretKeyValues = getSecretKey();
+		
+		String first = Arrays.toString(secretParameterValues);
+		String second = Arrays.toString(secretKeyValues);
+		
+		first = first.replace(", ", "_");
+		second = second.replace(", ", "_");
+		
+		heroName += ('_' + first.substring(1, first.length() - 1) +
+		'_' + second.substring(1, second.length() - 1) +
+		'_' + getKeySize());
+		
+		Path filePath = Paths.get("data/new/" + heroName + ".png");
+		try {
+			// Ensure parent directories exist
+			Files.createDirectories(filePath.getParent());
+			// Write image directly
+			ImageIO.write(bfImage, "png", filePath.toFile());
+			System.out.println("Image saved to: " + filePath);
+		} catch (IOException e1) {
+			System.out.println("Error saving image: " + filePath);
+			e1.printStackTrace();
+		}
+	}
+	
+	public int[] getRgbArray(boolean printInfo) {
+		ImageLogger imgLog = new ImageLogger(printInfo);
+		bfImage.getRGB(0, 0, width, height, rgbArray, 0, width);
+		imgLog.println("Image copied successfully!");
+		if (firstDraw) {
+			imgLog.print("Original image contents: ");
+			firstDraw = false;
+		} else {
+			imgLog.print("Current image contents: ");
+		}
+		imgLog.printArrayView(rgbArray);
+		return rgbArray;
+	}
+	
+	/** Add 1 to all ARGB byte values. */
+	public void addOne() {
+		byte[] curr = toBytesARGB(rgbArray);
+		for (int i = 0; i < curr.length; i++) {
+			curr[i]++;
+		}
+		rgbArray = fromBytesARGB(curr);
+		bfImage.setRGB(0, 0, width, height, rgbArray, 0, width);
+	}
+	
+	/** Add 10 to all ARGB byte values. */
+	public void addTen() {
+		byte[] curr = toBytesARGB(rgbArray);
+		for (int i = 0; i < curr.length; i++) {
+			curr[i] += 10;
+		}
+		rgbArray = fromBytesARGB(curr);
+		bfImage.setRGB(0, 0, width, height, rgbArray, 0, width);
+	}
+	
+	/** Subtract 1 from all ARGB byte values. */
+	public void subtractOne() {
+		byte[] curr = toBytesARGB(rgbArray);
+		for (int i = 0; i < curr.length; i++) {
+			curr[i]--;
+		}
+		rgbArray = fromBytesARGB(curr);
+		bfImage.setRGB(0, 0, width, height, rgbArray, 0, width);
+	}
+	
+	/** Subtract 10 from all ARGB byte values. */
+	public void subtractTen() {
+		byte[] curr = toBytesARGB(rgbArray);
+		for (int i = 0; i < curr.length; i++) {
+			curr[i] -= 10;
+		}
+		rgbArray = fromBytesARGB(curr);
+		bfImage.setRGB(0, 0, width, height, rgbArray, 0, width);
+	}
+}
