@@ -19,7 +19,7 @@ public class ModifiableImageApp extends JFrame {
 	private File imgFile;
 	private ImageLoader imgLdr;
 	
-	private static final boolean REDRAW_PRINT = true;
+	private static final boolean REDRAW_PRINT = false;
 	private static final boolean CIPHER_PRINT = false;
 	
 	public ModifiableImageApp() {
