@@ -4,6 +4,7 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -28,7 +29,6 @@ public class ImageLoader {
 	private final byte[] iv = new byte[16];
 	private final byte[] pad = new byte[16];
 	private int width, height, keySize;
-	private int[] rgbArray;
 	private BufferedImage bfImage;
 	private SecretKey symmetricKey = null;
 	
@@ -47,8 +47,6 @@ public class ImageLoader {
 		}
 		width = bfImage.getWidth();
 		height = bfImage.getHeight();
-		rgbArray = new int[width * height];
-		bfImage.getRGB(0, 0, width, height, rgbArray, 0, width);
 		
 		// Replace with metadata reader later
 		if (f.getName().lastIndexOf('.') != -1) {
@@ -94,8 +92,6 @@ public class ImageLoader {
 		bfImage = toIntARGB(bfImage);
 		width = bfImage.getWidth();
 		height = bfImage.getHeight();
-		rgbArray = new int[width * height];
-		bfImage.getRGB(0, 0, width, height, rgbArray, 0, width);
 	}
 	
 	public void encryptImageARGB(boolean printInfo) throws
@@ -108,6 +104,7 @@ public class ImageLoader {
 		keySize = 128;
 		symmetricKey = AesCBC.newAesKey(keySize);
 		
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] argbBytes = toBytesARGB(rgbArray);
 		imgLog.println("Image length in bytes: " + argbBytes.length);
 		imgLog.print("Image bytes: ");
@@ -144,6 +141,7 @@ public class ImageLoader {
 		ImageLogger imgLog = new ImageLogger(printInfo);
 		imgLog.println("--- Starting decryption ---");
 		
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] argbBytes = toBytesARGB(rgbArray);
 		imgLog.println("Current encrypted image length in bytes: " + argbBytes.length);
 		imgLog.print("Current encrypted image bytes: ");
@@ -175,6 +173,7 @@ public class ImageLoader {
 		keySize = 128;
 		symmetricKey = AesCBC.newAesKey(keySize);
 		
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] rgbBytes = toBytesRGB(rgbArray);
 		imgLog.println("Image length in bytes: " + rgbBytes.length);
 		imgLog.print("Image bytes: ");
@@ -211,6 +210,7 @@ public class ImageLoader {
 		ImageLogger imgLog = new ImageLogger(printInfo);
 		imgLog.println("--- Starting decryption ---");
 		
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] rgbBytes = toBytesRGB(rgbArray);
 		imgLog.println("Current encrypted image length in bytes: " + rgbBytes.length);
 		imgLog.print("Current encrypted image bytes: ");
@@ -399,11 +399,11 @@ public class ImageLoader {
 	}
 	
 	private byte[] extractAlpha(int[] rgbArray) {
-	    byte[] alphaArray = new byte[rgbArray.length];
-	    for (int i = 0; i < rgbArray.length; i++) {
-	    	alphaArray[i] = (byte) ((rgbArray[i] >>> 24) & 0xFF);
-	    }
-	    return alphaArray;
+		byte[] alphaArray = new byte[rgbArray.length];
+		for (int i = 0; i < rgbArray.length; i++) {
+			alphaArray[i] = (byte) ((rgbArray[i] >>> 24) & 0xFF);
+		}
+		return alphaArray;
 	}
 	
 	private void clearFields() {
@@ -454,8 +454,8 @@ public class ImageLoader {
 	
 	public int[] getRgbArray(boolean printInfo) {
 		ImageLogger imgLog = new ImageLogger(printInfo);
-		bfImage.getRGB(0, 0, width, height, rgbArray, 0, width);
-		imgLog.println("Image copied successfully!");
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
+		imgLog.println("Image extracted successfully!");
 		if (firstDraw) {
 			imgLog.print("Original image contents: ");
 			firstDraw = false;
@@ -468,6 +468,7 @@ public class ImageLoader {
 	
 	/** Add 1 to all ARGB byte values. */
 	public void addOne() {
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] curr = toBytesARGB(rgbArray);
 		for (int i = 0; i < curr.length; i++) {
 			curr[i]++;
@@ -478,6 +479,7 @@ public class ImageLoader {
 	
 	/** Add 10 to all ARGB byte values. */
 	public void addTen() {
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] curr = toBytesARGB(rgbArray);
 		for (int i = 0; i < curr.length; i++) {
 			curr[i] += 10;
@@ -488,6 +490,7 @@ public class ImageLoader {
 	
 	/** Subtract 1 from all ARGB byte values. */
 	public void subtractOne() {
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] curr = toBytesARGB(rgbArray);
 		for (int i = 0; i < curr.length; i++) {
 			curr[i]--;
@@ -498,6 +501,7 @@ public class ImageLoader {
 	
 	/** Subtract 10 from all ARGB byte values. */
 	public void subtractTen() {
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] curr = toBytesARGB(rgbArray);
 		for (int i = 0; i < curr.length; i++) {
 			curr[i] -= 10;
