@@ -32,6 +32,10 @@ public class ImageLoader {
 	private BufferedImage bfImage;
 	private SecretKey symmetricKey = null;
 	
+	private static final int RED = 1;
+	private static final int GREEN = 2;
+	private static final int BLUE = 3;
+	
 	public ImageLoader(File f) {
 		try {
 			bfImage = ImageIO.read(f);
@@ -45,6 +49,7 @@ public class ImageLoader {
 			bfImage = generatePlaceholder(Color.ORANGE, Color.PINK);
 			bfImage = toIntARGB(bfImage);
 		}
+		
 		width = bfImage.getWidth();
 		height = bfImage.getHeight();
 		
@@ -56,7 +61,7 @@ public class ImageLoader {
 			if (numbers.length > 7) {
 				try {
 					keySize = Integer.parseInt(numbers[numbers.length - 1]);
-					if (!(keySize != 128 && keySize != 192 && keySize != 256)) {
+					if (keySize == 128 || keySize == 192 || keySize == 256) {
 						int n = keySize / 64;
 						long padLSB = Long.parseLong(numbers[numbers.length - n - 2]);
 						long padMSB = Long.parseLong(numbers[numbers.length - n - 3]);
@@ -452,6 +457,7 @@ public class ImageLoader {
 		}
 	}
 	
+	/** Return the backing array of the current buffered image. */
 	public int[] getRgbArray(boolean printInfo) {
 		ImageLogger imgLog = new ImageLogger(printInfo);
 		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
@@ -466,8 +472,36 @@ public class ImageLoader {
 		return rgbArray;
 	}
 	
+	/** Set all non-red bytes to 0. */
+	public void keepOnly(int channel) {
+		if (!(bfImage.getRaster().getDataBuffer() instanceof DataBufferInt)) {
+			throw new IllegalArgumentException("Requires TYPE_INT_ARGB or TYPE_INT_RGB");
+		}
+		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
+		for (int i = 0; i < rgbArray.length; i++) {
+			int a = (rgbArray[i] >>> 24)	& 0xFF;
+			int r = (rgbArray[i] >>> 16)	& 0xFF;
+			int g = (rgbArray[i] >>> 8)		& 0xFF;
+			int b = (rgbArray[i])			& 0xFF;
+			
+			switch (channel) {
+			case RED:
+			g = 0; b = 0; break;
+			case GREEN:
+			r = 0; b = 0; break;
+			case BLUE:
+			r = 0; g = 0; break;
+			}
+			rgbArray[i] = (a << 24) | (r << 16) | (g << 8) | b;
+		}
+		bfImage.setRGB(0, 0, width, height, rgbArray, 0, width);
+	}
+	
 	/** Add 1 to all ARGB byte values. */
-	public void addOne() {
+	private void addOne() {
+		if (!(bfImage.getRaster().getDataBuffer() instanceof DataBufferInt)) {
+			throw new IllegalArgumentException("Requires TYPE_INT_ARGB or TYPE_INT_RGB");
+		}
 		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] curr = toBytesARGB(rgbArray);
 		for (int i = 0; i < curr.length; i++) {
@@ -477,34 +511,15 @@ public class ImageLoader {
 		bfImage.setRGB(0, 0, width, height, rgbArray, 0, width);
 	}
 	
-	/** Add 10 to all ARGB byte values. */
-	public void addTen() {
-		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
-		byte[] curr = toBytesARGB(rgbArray);
-		for (int i = 0; i < curr.length; i++) {
-			curr[i] += 10;
-		}
-		rgbArray = fromBytesARGB(curr);
-		bfImage.setRGB(0, 0, width, height, rgbArray, 0, width);
-	}
-	
 	/** Subtract 1 from all ARGB byte values. */
-	public void subtractOne() {
+	private void subtractOne() {
+		if (!(bfImage.getRaster().getDataBuffer() instanceof DataBufferInt)) {
+			throw new IllegalArgumentException("Requires TYPE_INT_ARGB or TYPE_INT_RGB");
+		}
 		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
 		byte[] curr = toBytesARGB(rgbArray);
 		for (int i = 0; i < curr.length; i++) {
 			curr[i]--;
-		}
-		rgbArray = fromBytesARGB(curr);
-		bfImage.setRGB(0, 0, width, height, rgbArray, 0, width);
-	}
-	
-	/** Subtract 10 from all ARGB byte values. */
-	public void subtractTen() {
-		int[] rgbArray = ((DataBufferInt) bfImage.getRaster().getDataBuffer()).getData();
-		byte[] curr = toBytesARGB(rgbArray);
-		for (int i = 0; i < curr.length; i++) {
-			curr[i] -= 10;
 		}
 		rgbArray = fromBytesARGB(curr);
 		bfImage.setRGB(0, 0, width, height, rgbArray, 0, width);

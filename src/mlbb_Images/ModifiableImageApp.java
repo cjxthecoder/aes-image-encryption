@@ -21,6 +21,9 @@ public class ModifiableImageApp extends JFrame {
 	
 	private static final boolean REDRAW_PRINT = false;
 	private static final boolean CIPHER_PRINT = false;
+	private static final int RED = 1;
+	private static final int GREEN = 2;
+	private static final int BLUE = 3;
 	
 	public ModifiableImageApp() {
 		super("AES Image Encryption");
@@ -147,10 +150,10 @@ public class ModifiableImageApp extends JFrame {
 		
 		controls.add(decryptButtonRGB);
 		
-		JButton addOne = new JButton(new AbstractAction("Add 1") {
+		JButton addOne = new JButton(new AbstractAction("Keep red") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				imgLdr.addOne();
+				imgLdr.keepOnly(RED);
 				redraw(width, height, REDRAW_PRINT);
 				canvasViewer.repaint();
 			}
@@ -158,10 +161,10 @@ public class ModifiableImageApp extends JFrame {
 		
 		controls.add(addOne);
 		
-		JButton addTen = new JButton(new AbstractAction("Add 10") {
+		JButton addTen = new JButton(new AbstractAction("Keep green") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				imgLdr.addTen();
+				imgLdr.keepOnly(GREEN);
 				redraw(width, height, REDRAW_PRINT);
 				canvasViewer.repaint();
 			}
@@ -169,10 +172,10 @@ public class ModifiableImageApp extends JFrame {
 		
 		controls.add(addTen);
 		
-		JButton subtractOne = new JButton(new AbstractAction("Subtract 1") {
+		JButton subtractOne = new JButton(new AbstractAction("Keep blue") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				imgLdr.subtractOne();
+				imgLdr.keepOnly(BLUE);
 				redraw(width, height, REDRAW_PRINT);
 				canvasViewer.repaint();
 			}
@@ -180,10 +183,10 @@ public class ModifiableImageApp extends JFrame {
 		
 		controls.add(subtractOne);
 		
-		JButton subtractTen = new JButton(new AbstractAction("Subtract 10") {
+		JButton subtractTen = new JButton(new AbstractAction("Reset") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				imgLdr.subtractTen();
+				loadFile(imgFile);
 				redraw(width, height, REDRAW_PRINT);
 				canvasViewer.repaint();
 			}
