@@ -150,7 +150,7 @@ public class ModifiableImageApp extends JFrame {
 		
 		controls.add(decryptButtonRGB);
 		
-		JButton addOne = new JButton(new AbstractAction("Keep red") {
+		JButton keepR = new JButton(new AbstractAction("Keep red") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				imgLdr.keepOnly(RED);
@@ -159,9 +159,9 @@ public class ModifiableImageApp extends JFrame {
 			}
 		});
 		
-		controls.add(addOne);
+		controls.add(keepR);
 		
-		JButton addTen = new JButton(new AbstractAction("Keep green") {
+		JButton keepG = new JButton(new AbstractAction("Keep green") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				imgLdr.keepOnly(GREEN);
@@ -170,9 +170,9 @@ public class ModifiableImageApp extends JFrame {
 			}
 		});
 		
-		controls.add(addTen);
+		controls.add(keepG);
 		
-		JButton subtractOne = new JButton(new AbstractAction("Keep blue") {
+		JButton keepB = new JButton(new AbstractAction("Keep blue") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				imgLdr.keepOnly(BLUE);
@@ -181,9 +181,9 @@ public class ModifiableImageApp extends JFrame {
 			}
 		});
 		
-		controls.add(subtractOne);
+		controls.add(keepB);
 		
-		JButton subtractTen = new JButton(new AbstractAction("Reset") {
+		JButton reset = new JButton(new AbstractAction("Reset") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				loadFile(imgFile);
@@ -192,7 +192,7 @@ public class ModifiableImageApp extends JFrame {
 			}
 		});
 		
-		controls.add(subtractTen);
+		controls.add(reset);
 		
 		JButton loadButton = new JButton(new AbstractAction("Load") {
 			@Override
