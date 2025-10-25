@@ -41,7 +41,7 @@ public class ImageLoader {
 			bfImage = ImageIO.read(f);
 			bfImage = toIntARGB(bfImage);
 		} catch (IOException e) {
-			System.out.println("An error occured while reading the file.");
+			System.out.println("An error occurred while reading the file.");
 			bfImage = generatePlaceholder(Color.ORANGE, Color.PINK);
 			bfImage = toIntARGB(bfImage);
 		} catch (NullPointerException e) {
@@ -60,17 +60,17 @@ public class ImageLoader {
 			
 			if (numbers.length > 7) {
 				try {
-					keySize = Integer.parseInt(numbers[numbers.length - 1]);
+					keySize = Integer.parseInt(numbers[numbers.length - 2]);
 					if (keySize == 128 || keySize == 192 || keySize == 256) {
 						int n = keySize / 64;
-						long padLSB = Long.parseLong(numbers[numbers.length - n - 2]);
-						long padMSB = Long.parseLong(numbers[numbers.length - n - 3]);
-						long ivLSB = Long.parseLong(numbers[numbers.length - n - 4]);
-						long ivMSB = Long.parseLong(numbers[numbers.length - n - 5]);
+						long padLSB = Long.parseLong(numbers[numbers.length - n - 3]);
+						long padMSB = Long.parseLong(numbers[numbers.length - n - 4]);
+						long ivLSB = Long.parseLong(numbers[numbers.length - n - 5]);
+						long ivMSB = Long.parseLong(numbers[numbers.length - n - 6]);
 						long[] keyLongs = new long[keySize / 64];
 						
 						for (int i = 2; i < 2 + n; i++) {
-							keyLongs[keyLongs.length - i + 1] = Long.parseLong(numbers[numbers.length - i]);
+							keyLongs[keyLongs.length - i + 1] = Long.parseLong(numbers[numbers.length - i - 1]);
 						}
 						
 						byte[] keyBytes = toBytesBE(keyLongs, n);
@@ -79,12 +79,12 @@ public class ImageLoader {
 						System.arraycopy(toBytesBE(padMSB, padLSB), 0, pad, 0, 16);
 						System.arraycopy(toBytesBE(ivMSB, ivLSB), 0, iv, 0, 16);
 					} else {
-						System.out.println("An error occured: Invalid key length.");
+						System.out.println("An error occurred: Invalid key length.");
 					}
 				} catch (NumberFormatException e) {
 					System.out.println("java.lang.NumberFormatException: " + e.getMessage());
 					clearFields();
-				} catch (ArrayIndexOutOfBoundsException e) {
+				} catch (IllegalArgumentException e) {
 					System.out.println("java.lang.ArrayIndexOutOfBoundsException: " + e.getMessage());
 					clearFields();
 				}
