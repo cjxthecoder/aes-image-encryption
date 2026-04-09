@@ -11,8 +11,8 @@ public class ModifiableImageApp extends JFrame {
 	// List of characters
 	private final String[] characters = {"lesley", "lunox",
 			"cici", "esmeralda", "ixia", "melissa",
-			"fanny", "guinevere", "benedetta", "odette",
-			"masha", "mathilda", "kagura", "layla"};
+			"fanny", "guinevere", "natalia", "odette",
+			"benedetta", "mathilda", "kagura", "layla"};
 	
 	private int width, height;
 	private BufferedImage canvas;
