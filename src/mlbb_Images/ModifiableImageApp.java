@@ -12,7 +12,7 @@ public class ModifiableImageApp extends JFrame {
 	private final String[] characters = {"lesley", "lunox",
 			"cici", "esmeralda", "ixia", "melissa",
 			"fanny", "guinevere", "natalia", "odette",
-			"benedetta", "mathilda", "kagura", "layla"};
+			"benedetta", "mathilda", "layla", "kagura"};
 	
 	private int width, height;
 	private BufferedImage canvas;
