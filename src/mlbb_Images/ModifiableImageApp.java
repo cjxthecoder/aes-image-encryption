@@ -9,79 +9,81 @@ import java.security.InvalidKeyException;
 
 public class ModifiableImageApp extends JFrame {
 	// List of characters
-	private final String[] characters = {"lesley", "lunox",
-			"cici", "esmeralda", "ixia", "melissa",
-			"fanny", "guinevere", "natalia", "odette",
-			"benedetta", "mathilda", "layla", "kagura"};
-	
+	private final String[] characters = { "lesley", "lunox", "cici", "esmeralda", "ixia", "melissa", "fanny",
+			"guinevere", "natalia", "odette", "benedetta", "mathilda", "layla", "kagura" };
+
 	private int width, height;
 	private BufferedImage canvas;
 	private File imgFile;
 	private ImageLoader imgLdr;
-	
+
 	private static final boolean REDRAW_PRINT = false;
 	private static final boolean CIPHER_PRINT = false;
 	private static final int RED = 1;
 	private static final int GREEN = 2;
 	private static final int BLUE = 3;
-	
+
 	public ModifiableImageApp() {
 		super("AES Image Encryption");
-		
+
 		File defaultFile = new File("data/after-sunset-minimal-4k-zm-1920x1080.jpg");
-		
+
 		// 1) Create your drawing surface
 		loadFile(defaultFile);
 		redraw(width, height, REDRAW_PRINT);
-		
-		// 2) CENTER: a viewer that paints the canvas, scales to fit, and enforces canvas min size
+
+		// 2) CENTER: a viewer that paints the canvas, scales to fit, and enforces
+		// canvas min size
 		JComponent canvasViewer = new JPanel() {
-			@Override public Dimension getPreferredSize() {
+			@Override
+			public Dimension getPreferredSize() {
 				return new Dimension(canvas.getWidth(), canvas.getHeight());
 			}
-			@Override public Dimension getMinimumSize() {
+
+			@Override
+			public Dimension getMinimumSize() {
 				return new Dimension(320, Math.min(height, 180));
 			}
-			@Override protected void paintComponent(Graphics g) {
+
+			@Override
+			protected void paintComponent(Graphics g) {
 				super.paintComponent(g);
-				if (canvas == null) return;
+				if (canvas == null)
+					return;
 				Graphics2D g2 = (Graphics2D) g.create();
 				g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 				g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-				
+
 				int srcW = canvas.getWidth();
 				int srcH = canvas.getHeight();
 				int dstW = getWidth();
 				int dstH = getHeight();
-				double s = Math.min(dstW / (double)(srcW), dstH / (double)(srcH));
-				int w = (int)(Math.round(srcW * s));
-				int h = (int)(Math.round(srcH * s));
+				double s = Math.min(dstW / (double) (srcW), dstH / (double) (srcH));
+				int w = (int) (Math.round(srcW * s));
+				int h = (int) (Math.round(srcH * s));
 				int x = (dstW - w) / 2;
 				int y = (dstH - h) / 2;
 				g2.drawImage(canvas, x, y, w, h, null);
 				g2.dispose();
 			}
 		};
-		
+
 		// 3) SOUTH: 52px-high menu with vertical scrolling
 		JPanel controls = new JPanel();
 		controls.setLayout(new BoxLayout(controls, BoxLayout.X_AXIS)); // vertical stack; scroll vertically
 		controls.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
-		
-		JScrollPane controlScroll = new JScrollPane(
-				controls,
-				ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER,
-				ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
-		);
+
+		JScrollPane controlScroll = new JScrollPane(controls, ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER,
+				ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		controlScroll.setBorder(null);
 		controlScroll.setViewportBorder(null);
 		controlScroll.getVerticalScrollBar().setUnitIncrement(12);
-			
+
 		JPanel southBar = new JPanel(new BorderLayout());
 		southBar.add(controlScroll, BorderLayout.CENTER);
 		southBar.setPreferredSize(new Dimension(0, 52)); // fixed 52px tall
-		
+
 		JButton encryptButtonARGB = new JButton(new AbstractAction("Encrypt using ARGB") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -96,9 +98,9 @@ public class ModifiableImageApp extends JFrame {
 				}
 			}
 		});
-		
+
 		controls.add(encryptButtonARGB);
-		
+
 		JButton decryptButtonARGB = new JButton(new AbstractAction("Decrypt using ARGB") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -113,9 +115,9 @@ public class ModifiableImageApp extends JFrame {
 				}
 			}
 		});
-		
+
 		controls.add(decryptButtonARGB);
-		
+
 		JButton encryptButtonRGB = new JButton(new AbstractAction("Encrypt using RGB") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -130,9 +132,9 @@ public class ModifiableImageApp extends JFrame {
 				}
 			}
 		});
-		
+
 		controls.add(encryptButtonRGB);
-		
+
 		JButton decryptButtonRGB = new JButton(new AbstractAction("Decrypt using RGB") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -147,9 +149,9 @@ public class ModifiableImageApp extends JFrame {
 				}
 			}
 		});
-		
+
 		controls.add(decryptButtonRGB);
-		
+
 		JButton keepR = new JButton(new AbstractAction("Keep red") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -158,9 +160,9 @@ public class ModifiableImageApp extends JFrame {
 				canvasViewer.repaint();
 			}
 		});
-		
+
 		controls.add(keepR);
-		
+
 		JButton keepG = new JButton(new AbstractAction("Keep green") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -169,9 +171,9 @@ public class ModifiableImageApp extends JFrame {
 				canvasViewer.repaint();
 			}
 		});
-		
+
 		controls.add(keepG);
-		
+
 		JButton keepB = new JButton(new AbstractAction("Keep blue") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -180,9 +182,9 @@ public class ModifiableImageApp extends JFrame {
 				canvasViewer.repaint();
 			}
 		});
-		
+
 		controls.add(keepB);
-		
+
 		JButton reset = new JButton(new AbstractAction("Reset") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -191,14 +193,15 @@ public class ModifiableImageApp extends JFrame {
 				canvasViewer.repaint();
 			}
 		});
-		
+
 		controls.add(reset);
-		
+
 		JButton loadButton = new JButton(new AbstractAction("Load") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				JFileChooser chooser = new JFileChooser();
-				if (chooser.showOpenDialog(ModifiableImageApp.this) != JFileChooser.APPROVE_OPTION) return;
+				if (chooser.showOpenDialog(ModifiableImageApp.this) != JFileChooser.APPROVE_OPTION)
+					return;
 				File f = chooser.getSelectedFile();
 				loadFile(f);
 				redraw(width, height, REDRAW_PRINT);
@@ -206,9 +209,9 @@ public class ModifiableImageApp extends JFrame {
 				canvasViewer.repaint();
 			}
 		});
-		
+
 		controls.add(loadButton);
-		
+
 		JButton saveButton = new JButton(new AbstractAction("Save as PNG") {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -219,18 +222,19 @@ public class ModifiableImageApp extends JFrame {
 				}
 			}
 		});
-		
+
 		controls.add(saveButton);
-		
+
 		// 4) Layout the frame
 		setLayout(new BorderLayout());
 		add(canvasViewer, BorderLayout.CENTER);
 		add(southBar, BorderLayout.SOUTH);
-		
-		// 5) Pack, then set a correct *frame* minimum size that includes insets + 52px menu
+
+		// 5) Pack, then set a correct *frame* minimum size that includes insets + 52px
+		// menu
 		pack();
 		packFrame(canvasViewer, southBar);
-		
+
 		// Optional initial size
 		setSize(1280, 800);
 		setLocationRelativeTo(null);
@@ -242,7 +246,7 @@ public class ModifiableImageApp extends JFrame {
 		int[] rgbData = imgLdr.getRgbArray(printInfo);
 		canvas.setRGB(0, 0, width, height, rgbData, 0, width);
 	}
-	
+
 	private void packFrame(JComponent canvasViewer, JPanel southBar) {
 		// Let layout recompute sizes based on current canvas
 		getContentPane().revalidate();
@@ -253,21 +257,21 @@ public class ModifiableImageApp extends JFrame {
 		int frameMinH = viewerMin.height + southH + ins.top + ins.bottom;
 		setMinimumSize(new Dimension(frameMinW, frameMinH));
 	}
-	
+
 	private void loadFile(File f) {
 		try {
 			imgFile = f;
-			
+
 			// Construct loader based on whether you pass a file:
 			if (f == null) {
 				imgLdr = new ImageLoader();
 			} else {
 				imgLdr = new ImageLoader(f);
 			}
-			
+
 			width = imgLdr.getImgWidth();
 			height = imgLdr.getImgHeight();
-			
+
 			// Recreate canvas at the new size
 			canvas = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 		} catch (Exception e) {
@@ -275,7 +279,7 @@ public class ModifiableImageApp extends JFrame {
 			JOptionPane.showMessageDialog(this, "Failed to load " + f, "Error", JOptionPane.ERROR_MESSAGE);
 		}
 	}
-	
+
 	private String getHeroName(String fileName) {
 		for (int i = 0; i < characters.length; i++) {
 			if (fileName.contains(characters[i])) {
@@ -284,7 +288,7 @@ public class ModifiableImageApp extends JFrame {
 		}
 		return "encrypted";
 	}
-	
+
 	public static void main(String[] args) {
 		SwingUtilities.invokeLater(ModifiableImageApp::new);
 	}

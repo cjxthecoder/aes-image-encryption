@@ -22,23 +22,27 @@ public final class AesCBC {
 	private static final SecureRandom RNG = new SecureRandom();
 
 	// Suppresses default constructor, ensuring non-instantiability.
-	private AesCBC() {}
-	
-	/** Generates a random AES key with {@code bits} bits. 
-	 * @throws NoSuchAlgorithmException */
+	private AesCBC() {
+	}
+
+	/**
+	 * Generates a random AES key with {@code bits} bits.
+	 * 
+	 * @throws NoSuchAlgorithmException
+	 */
 	public static SecretKey newAesKey(int bits) throws NoSuchAlgorithmException {
 		KeyGenerator kg = KeyGenerator.getInstance("AES");
 		kg.init(bits);
 		return kg.generateKey();
 	}
-	
+
 	/** Generates a random 128-bit IV. */
 	public static byte[] randomIV() {
 		byte[] iv = new byte[16];
 		new SecureRandom().nextBytes(iv);
 		return iv;
 	}
-	
+
 	/** Generates a byte array from a hex string. */
 	public static byte[] fromHex(String s) {
 		int len = s.length();
@@ -49,22 +53,24 @@ public final class AesCBC {
 		for (int i = 0; i < out.length; i++) {
 			int hi = Character.digit(s.charAt(2 * i), 16);
 			int lo = Character.digit(s.charAt(2 * i + 1), 16);
-			out[i] = (byte)((hi << 4) | lo);
+			out[i] = (byte) ((hi << 4) | lo);
 		}
 		return out;
 	}
-	
-	/** Output layout: [IV(16) | PKCS5 ciphertext]. 
-	 * @throws NoSuchPaddingException 
-	 * @throws NoSuchAlgorithmException 
-	 * @throws InvalidAlgorithmParameterException 
-	 * @throws InvalidKeyException 
-	 * @throws BadPaddingException 
-	 * @throws IllegalBlockSizeException */
+
+	/**
+	 * Output layout: [IV(16) | PKCS5 ciphertext].
+	 * 
+	 * @throws NoSuchPaddingException
+	 * @throws NoSuchAlgorithmException
+	 * @throws InvalidAlgorithmParameterException
+	 * @throws InvalidKeyException
+	 * @throws BadPaddingException
+	 * @throws IllegalBlockSizeException
+	 */
 	public static byte[] aesCbcEncryptPkcs5(byte[] plaintext, SecretKey key, boolean randomIV)
-			throws NoSuchAlgorithmException, NoSuchPaddingException,
-			InvalidKeyException, InvalidAlgorithmParameterException,
-			IllegalBlockSizeException, BadPaddingException {
+			throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException,
+			InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
 		byte[] iv = randomIV ? randomIV() : AesCBC.fromHex("000102030405060708090a0b0c0d0e0f");
 		Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
 		c.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
@@ -73,19 +79,20 @@ public final class AesCBC {
 		out.put(iv).put(ct);
 		return out.array();
 	}
-	
-	/** Input layout: [IV(16) | PKCS5 ciphertext]. 
-	 * @throws NoSuchPaddingException 
-	 * @throws NoSuchAlgorithmException 
-	 * @throws InvalidAlgorithmParameterException 
-	 * @throws InvalidKeyException 
-	 * @throws BadPaddingException 
+
+	/**
+	 * Input layout: [IV(16) | PKCS5 ciphertext].
+	 * 
+	 * @throws NoSuchPaddingException
+	 * @throws NoSuchAlgorithmException
+	 * @throws InvalidAlgorithmParameterException
+	 * @throws InvalidKeyException
+	 * @throws BadPaddingException
 	 * @throws IllegalBlockSizeException
-	 * */
+	 */
 	static byte[] aesCbcDecryptPkcs5(byte[] blob, SecretKey key)
-			throws NoSuchAlgorithmException, NoSuchPaddingException,
-			InvalidKeyException, InvalidAlgorithmParameterException,
-			IllegalBlockSizeException, BadPaddingException {
+			throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException,
+			InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
 		if (blob.length < 16) {
 			throw new IllegalArgumentException("too short");
 		}
@@ -97,45 +104,49 @@ public final class AesCBC {
 		c.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
 		return c.doFinal(ct);
 	}
-	
+
 	/**
-	 * Encrypt a byte[] with AES-GCM.
-	 * Output layout: [IV (12 bytes) | ciphertext+tag (... bytes)]
-	 * AAD may be null (optional associated data for authenticity, not encrypted).
+	 * Encrypt a byte[] with AES-GCM. Output layout: [IV (12 bytes) | ciphertext+tag
+	 * (... bytes)] AAD may be null (optional associated data for authenticity, not
+	 * encrypted).
 	 */
-	public static byte[] aesGcmEncrypt(byte[] plaintext, SecretKey key, byte[] aad)
-			throws GeneralSecurityException {
+	public static byte[] aesGcmEncrypt(byte[] plaintext, SecretKey key, byte[] aad) throws GeneralSecurityException {
 		byte[] iv = new byte[IV_LENGTH];
 		RNG.nextBytes(iv);
-		
+
 		Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
 		GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
 		cipher.init(Cipher.ENCRYPT_MODE, key, spec);
-		if (aad != null) cipher.updateAAD(aad);
-		
+		if (aad != null)
+			cipher.updateAAD(aad);
+
 		byte[] ctAndTag = cipher.doFinal(plaintext);
-		
+
 		ByteBuffer out = ByteBuffer.allocate(iv.length + ctAndTag.length);
 		out.put(iv).put(ctAndTag);
 		return out.array();
 	}
-	
-	/** Decrypt data produced by encrypt(); returns plaintext or throws AEADBadTagException on tamper. */
+
+	/**
+	 * Decrypt data produced by encrypt(); returns plaintext or throws
+	 * AEADBadTagException on tamper.
+	 */
 	public static byte[] aesGcmDecrypt(byte[] ivAndCiphertext, SecretKey key, byte[] aad)
 			throws GeneralSecurityException {
 		ByteBuffer in = ByteBuffer.wrap(ivAndCiphertext);
-		
+
 		byte[] iv = new byte[IV_LENGTH];
 		in.get(iv);
-		
+
 		byte[] ctAndTag = new byte[in.remaining()];
 		in.get(ctAndTag);
-		
+
 		Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
 		GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
 		cipher.init(Cipher.DECRYPT_MODE, key, spec);
-		if (aad != null) cipher.updateAAD(aad);
-		
+		if (aad != null)
+			cipher.updateAAD(aad);
+
 		return cipher.doFinal(ctAndTag);
 	}
 }
